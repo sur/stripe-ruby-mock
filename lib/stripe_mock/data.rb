@@ -7,6 +7,7 @@ module StripeMock
       {
         id: id,
         email: "bob@example.com",
+        created: DateTime.now.to_i,
         statement_descriptor: nil,
         display_name: "Stripe.com",
         timezone: "US/Pacific",
