@@ -6,7 +6,13 @@ module StripeMock
         params[:id] = params[:id].to_s
 
         @base_strategy.create_plan_params.keys.each do |name|
-          raise Stripe::InvalidRequestError.new("Missing required param: #{name}.", name) if params[name].nil?
+          message =
+            if name == :amount
+              "Plans require an `#{name}` parameter to be set."
+            else
+              "Missing required param: #{name}."
+            end
+          raise Stripe::InvalidRequestError.new(message, name) if params[name].nil?
         end
 
         if plans[ params[:id] ]
@@ -18,6 +24,9 @@ module StripeMock
         end
       end
 
+      def require_param(param_name)
+        raise Stripe::InvalidRequestError.new("Missing required param: #{param_name}.", param_name.to_s, http_status: 400)
+      end
     end
   end
 end

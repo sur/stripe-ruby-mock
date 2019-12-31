@@ -3,7 +3,7 @@ module StripeMock
 
     def self.mock_account(params = {})
       id = params[:id] || 'acct_103ED82ePvKYlo2C'
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       {
         id: id,
         email: "bob@example.com",
@@ -12,7 +12,7 @@ module StripeMock
         timezone: "US/Pacific",
         details_submitted: false,
         charges_enabled: false,
-        transfers_enabled: false,
+        payouts_enabled: false,
         currencies_supported: [
           "usd"
         ],
@@ -101,9 +101,25 @@ module StripeMock
       }.merge(params)
     end
 
+    def self.mock_tax_rate(params)
+      {
+        id: 'test_cus_default',
+        object: 'tax_rate',
+        active: true,
+        created: 1559079603,
+        description: nil,
+        display_name: 'VAT',
+        inclusive: false,
+        jurisdiction: 'EU',
+        livemode: false,
+        metadata: {},
+        percentage: 21.0
+      }.merge(params)
+    end
+
     def self.mock_customer(sources, params)
       cus_id = params[:id] || "test_cus_default"
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       sources.each {|source| source[:customer] = cus_id}
       {
         email: 'stripe_mock@example.com',
@@ -111,6 +127,7 @@ module StripeMock
         object: "customer",
         created: 1372126710,
         id: cus_id,
+        name: nil,
         livemode: false,
         delinquent: false,
         discount: nil,
@@ -134,7 +151,7 @@ module StripeMock
 
     def self.mock_charge(params={})
       charge_id = params[:id] || "ch_1fD6uiR9FAA2zc"
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       {
         id: charge_id,
         object: "charge",
@@ -196,7 +213,7 @@ module StripeMock
     end
 
     def self.mock_refund(params={})
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       {
         id: "re_4fWhgUh5si7InF",
         amount: 1,
@@ -207,7 +224,8 @@ module StripeMock
         metadata: {},
         charge: "ch_4fWhYjzQ23UFWT",
         receipt_number: nil,
-        status: "succeeded"
+        status: "succeeded",
+        reason: "requested_by_customer"
       }.merge(params)
     end
 
@@ -242,12 +260,13 @@ module StripeMock
         cvc_check: nil,
         address_line1_check: nil,
         address_zip_check: nil,
-        tokenization_method: nil
+        tokenization_method: nil,
+        metadata: {}
       }, params)
     end
 
     def self.mock_bank_account(params={})
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       {
         id: "test_ba_default",
         object: "bank_account",
@@ -260,7 +279,8 @@ module StripeMock
         status: 'new',
         account_holder_name: 'John Doe',
         account_holder_type: 'individual',
-        fingerprint: "aBcFinGerPrINt123"
+        fingerprint: "aBcFinGerPrINt123",
+        metadata: {}
       }.merge(params)
     end
 
@@ -284,9 +304,11 @@ module StripeMock
     def self.mock_subscription(params={})
       StripeMock::Util.rmerge({
         created: 1478204116,
+        billing: 'charge_automatically',
         current_period_start: 1308595038,
         current_period_end: 1308681468,
         status: 'trialing',
+        trial_from_plan: false,
         plan: {
           interval: 'month',
           amount: 7500,
@@ -304,7 +326,7 @@ module StripeMock
             plan: {
               amount: 999,
               created: 1504035972,
-              currency: 'usd'
+              currency: StripeMock.default_currency
             },
             quantity: 1
           }]
@@ -326,11 +348,14 @@ module StripeMock
 
     def self.mock_invoice(lines, params={})
       in_id = params[:id] || "test_in_default"
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       lines << Data.mock_line_item() if lines.empty?
       invoice = {
         id: 'in_test_invoice',
-        date: 1349738950,
+        status: 'open',
+        invoice_pdf: 'pdf_url',
+        hosted_invoice_url: 'hosted_invoice_url',
+        created: 1349738950,
         period_end: 1349738950,
         period_start: 1349738950,
         lines: {
@@ -351,12 +376,13 @@ module StripeMock
         paid: false,
         receipt_number: nil,
         statement_descriptor: nil,
-        tax: nil,
+        tax: 10,
         tax_percent: nil,
         webhooks_delivered_at: 1349825350,
         livemode: false,
         attempt_count: 0,
-        amount_due: nil,
+        amount_due: 100,
+        amount_paid: 0,
         currency: currency,
         starting_balance: 0,
         ending_balance: nil,
@@ -377,7 +403,7 @@ module StripeMock
     end
 
     def self.mock_line_item(params = {})
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       {
         id: "ii_test",
         object: "line_item",
@@ -391,6 +417,11 @@ module StripeMock
           start: 1349738920,
           end: 1349738920
         },
+        tax_amounts: [
+          {
+            amount: 10
+          }
+        ],
         quantity: nil,
         subscription: nil,
         plan: nil,
@@ -400,11 +431,11 @@ module StripeMock
     end
 
     def self.mock_invoice_item(params = {})
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       {
         id: "test_ii",
         object: "invoiceitem",
-        date: 1349738920,
+        created: 1349738920,
         amount: 1099,
         livemode: false,
         proration: false,
@@ -488,7 +519,7 @@ module StripeMock
     end
 
     def self.mock_plan(params={})
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       {
         id: "2",
         object: "plan",
@@ -502,6 +533,21 @@ module StripeMock
         name: "The Basic Plan",
         statement_descriptor: nil,
         trial_period_days: nil
+      }.merge(params)
+    end
+
+    def self.mock_product(params = {})
+      {
+        id: "default_test_prod",
+        object: "product",
+        active: true,
+        created: 1556896214,
+        livemode: false,
+        metadata: {},
+        name: "Default Test Product",
+        statement_descriptor: "PRODUCT",
+        type: "service",
+        updated: 1556918200,
       }.merge(params)
     end
 
@@ -589,34 +635,47 @@ module StripeMock
     end
 
     def self.mock_transfer(params={})
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       id = params[:id] || 'tr_test_transfer'
       {
-        :status => 'pending',
         :amount => 100,
-        :account => {
-          :object => 'bank_account',
-          :country => 'US',
-          :bank_name => 'STRIPE TEST BANK',
-          :last4 => '6789'
-        },
-        :recipient => 'test_recipient',
-        :fee => 0,
-        :fee_details => [],
+        :amount_reversed => 0,
+        :balance_transaction => "txn_2dyYXXP90MN26R",
         :id => id,
         :livemode => false,
         :metadata => {},
         :currency => currency,
         :object => "transfer",
-        :date => 1304114826,
+        :created => 1304114826,
         :description => "Transfer description",
         :reversed => false,
         :reversals => {
           :object => "list",
+          :data => [],
           :total_count => 0,
           :has_more => false,
           :url => "/v1/transfers/#{id}/reversals"
         },
+        :destination => "acct_164wxjKbnvuxQXGu",
+        :destination_payment => "py_164xRvKbnvuxQXGuVFV2pZo1",
+        :source_transaction => "ch_164xRv2eZvKYlo2Clu1sIJWB",
+        :source_type => "card",
+        :transfer_group => "group_ch_164xRv2eZvKYlo2Clu1sIJWB",
+      }.merge(params)
+    end
+
+    def self.mock_payout(params={})
+      currency = params[:currency] || StripeMock.default_currency
+      id = params[:id] || 'po_test_payout'
+      {
+        :amount => 100,
+        :id => id,
+        :livemode => false,
+        :metadata => {},
+        :currency => currency,
+        :object => "payout",
+        :date => 1304114826,
+        :description => "Payout description",
       }.merge(params)
     end
 
@@ -630,7 +689,7 @@ module StripeMock
 
     def self.mock_dispute(params={})
       @timestamp ||= Time.now.to_i
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       id = params[:id] || "dp_test_dispute"
       {
         :id => id,
@@ -909,6 +968,38 @@ module StripeMock
       }
     end
 
+    def self.mock_balance(usd_balance = 10000)
+      {
+        object: "balance",
+        available: [
+          {
+            currency: "usd",
+            amount: usd_balance,
+            source_types: {
+              card: 25907032203,
+              bank_account: 108476658,
+              bitcoin_receiver: 1545182
+            }
+          }],
+        connect_reserved: [
+          {
+            currency: "usd",
+            amount: 4700
+          }],
+        livemode: false,
+        pending: [
+          {
+            currency: "usd",
+            amount: 22738833554,
+            source_types: {
+              card: 22738826610,
+              bank_account: 0,
+              bitcoin_receiver: 6944
+            }
+          }]
+      }
+    end
+
     def self.mock_balance_transactions(ids=[])
       bts = {}
       ids.each do |id|
@@ -918,7 +1009,7 @@ module StripeMock
     end
 
     def self.mock_balance_transaction(params = {})
-      currency = params[:currency] || 'usd'
+      currency = params[:currency] || StripeMock.default_currency
       bt_id = params[:id] || 'test_txn_default'
       source = params[:source] || 'ch_test_charge'
       {
@@ -966,7 +1057,7 @@ module StripeMock
           object: 'plan',
           amount: 1337,
           created: 1504716177,
-          currency: 'usd',
+          currency: StripeMock.default_currency,
           interval: 'month',
           interval_count: 1,
           livemode: false,
@@ -977,6 +1068,25 @@ module StripeMock
         },
         quantity: 2
       }.merge(params)
+    end
+
+    def self.mock_ephemeral_key(**params)
+      created = Time.now.to_i
+      expires = created + 34_000
+      {
+        id: "ephkey_default",
+        object: "ephemeral_key",
+        associated_objects: [
+          {
+            id: params[:customer],
+            type: "customer"
+          }
+        ],
+        created: created,
+        expires: expires,
+        livemode: false,
+        secret: "ek_test_default"
+      }
     end
   end
 end

@@ -52,7 +52,7 @@ shared_examples 'Invoice API' do
     end
 
     it "stores all invoices in memory" do
-      expect(Stripe::Invoice.all.map(&:id)).to eq([@invoice.id, @invoice2.id])
+      expect(Stripe::Invoice.all.map(&:id).sort).to eq([@invoice.id, @invoice2.id].sort)
     end
 
     it "defaults count to 10 invoices" do
@@ -79,7 +79,7 @@ shared_examples 'Invoice API' do
     end
 
     it 'updates attempted and paid flags' do
-      @invoice.pay
+      @invoice = @invoice.pay
       expect(@invoice.attempted).to eq(true)
       expect(@invoice.paid).to eq(true)
     end
@@ -89,7 +89,7 @@ shared_examples 'Invoice API' do
     end
 
     it 'sets the charge attribute' do
-      @invoice.pay
+      @invoice = @invoice.pay
       expect(@invoice.charge).to be_a String
       expect(@invoice.charge.length).to be > 0
     end
@@ -107,12 +107,12 @@ shared_examples 'Invoice API' do
   end
 
   context "retrieving upcoming invoice" do
-    let(:customer)      { @teardown_customer = true; Stripe::Customer.create(source: stripe_helper.generate_card_token) }
-    let(:coupon_amtoff) { @teardown_coupon_amtoff = true; Stripe::Coupon.create(id: '100OFF', currency: 'usd', amount_off: 100_00, duration: 'repeating', duration_in_months: 6) }
-    let(:coupon_pctoff) { @teardown_coupon_pctoff = true; Stripe::Coupon.create(id: '50%OFF', currency: 'usd', percent_off: 50, duration: 'repeating', duration_in_months: 6) }
-    let(:plan)          { @teardown_plan = true; Stripe::Plan.create(id: '50m', amount: 50_00, interval: 'month', name: '50m', currency: 'usd') }
+    let(:customer)      { Stripe::Customer.create(source: stripe_helper.generate_card_token) }
+    let(:coupon_amtoff) { stripe_helper.create_coupon(id: '100OFF', currency: 'usd', amount_off: 100_00, duration: 'repeating', duration_in_months: 6) }
+    let(:coupon_pctoff) { stripe_helper.create_coupon(id: '50%OFF', currency: 'usd', percent_off: 50, amount_off: nil, duration: 'repeating', duration_in_months: 6) }
+    let(:plan)          { stripe_helper.create_plan(id: '50m', amount: 50_00, interval: 'month', name: '50m', currency: 'usd') }
     let(:quantity)      { 3 }
-    let(:subscription)  { @teardown_subscription = true; Stripe::Subscription.create(plan: plan.id, customer: customer.id, quantity: quantity) }
+    let(:subscription)  { Stripe::Subscription.create(plan: plan.id, customer: customer.id, quantity: quantity) }
 
     before(with_customer:         true) { customer }
     before(with_coupon_amtoff:    true) { coupon_amtoff }
@@ -122,11 +122,11 @@ shared_examples 'Invoice API' do
     before(with_plan:             true) { plan }
     before(with_subscription:     true) { subscription }
 
-    after { subscription.delete   rescue nil if @teardown_subscription }
-    after { plan.delete           rescue nil if @teardown_plan }
-    after { coupon_pctoff.delete  rescue nil if @teardown_coupon_pctoff }
-    after { coupon_amtoff.delete  rescue nil if @teardown_coupon_amtoff }
-    after { customer.delete       rescue nil if @teardown_customer }
+    # after { subscription.delete   rescue nil if @teardown_subscription }
+    # after { plan.delete           rescue nil if @teardown_plan }
+    # after { coupon_pctoff.delete  rescue nil if @teardown_coupon_pctoff }
+    # after { coupon_amtoff.delete  rescue nil if @teardown_coupon_amtoff }
+    # after { customer.delete       rescue nil if @teardown_customer }
 
     describe 'parameter validation' do
       it 'fails without parameters' do
@@ -248,8 +248,9 @@ shared_examples 'Invoice API' do
 
       [false, true].each do |with_trial|
         describe "prorating a subscription with a new plan, with_trial: #{with_trial}" do
-          let(:new_monthly_plan) { @teardown_monthly_plan = true; Stripe::Plan.create(id: '100m', amount: 100_00, interval: 'month', name: '100m', currency: 'usd') }
-          let(:new_yearly_plan) { @teardown_yearly_plan = true; Stripe::Plan.create(id: '100y', amount: 100_00, interval: 'year', name: '100y', currency: 'usd') }
+          let(:new_monthly_plan) { stripe_helper.create_plan(id: '100m', amount: 100_00, interval: 'month', name: '100m', currency: 'usd') }
+          let(:new_yearly_plan) { stripe_helper.create_plan(id: '100y', amount: 100_00, interval: 'year', name: '100y', currency: 'usd') }
+          let(:plan) { stripe_helper.create_plan(id: '50m', amount: 50_00, interval: 'month', name: '50m', currency: 'usd') }
 
           it 'prorates while maintaining billing interval', live: true do
             # Given
@@ -341,8 +342,8 @@ shared_examples 'Invoice API' do
             expect(upcoming.lines.data[1].quantity).to eq new_quantity
           end
 
-          after { new_monthly_plan.delete rescue nil if @teardown_monthly_plan }
-          after { new_yearly_plan.delete rescue nil if @teardown_yearly_plan }
+          # after { new_monthly_plan.delete rescue nil if @teardown_monthly_plan }
+          # after { new_yearly_plan.delete rescue nil if @teardown_yearly_plan }
         end
       end
 
@@ -350,7 +351,7 @@ shared_examples 'Invoice API' do
         it 'generates a preview without performing an actual proration', live: true do
           expect(preview.subtotal).to eq 150_00
           # this is a future invoice (generted at the end of the current subscription cycle), rather than a proration invoice
-          expect(preview.date).to be_within(1).of subscription.current_period_end
+          expect(preview.created).to be_within(1).of subscription.current_period_end
           expect(preview.period_start).to eq subscription.current_period_start
           expect(preview.period_end).to eq subscription.current_period_end
           expect(preview.lines.count).to eq 1
@@ -359,7 +360,7 @@ shared_examples 'Invoice API' do
           expect(line.amount).to eq 150_00
           # line period is for the NEXT subscription cycle
           expect(line.period.start).to be_within(1).of subscription.current_period_end
-          expect(line.period.end).to be_within(1).of (Time.at(subscription.current_period_end).to_datetime >> 1).to_time.to_i # +1 month
+          expect(Time.at(line.period.end).month).to be_within(1).of (Time.at(subscription.current_period_end).to_datetime >> 1).month # +1 month
         end
       end
 

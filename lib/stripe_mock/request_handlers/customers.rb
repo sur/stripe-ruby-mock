@@ -40,7 +40,7 @@ module StripeMock
           end
 
           subscription = Data.mock_subscription({ id: new_id('su') })
-          subscription.merge!(custom_subscription_params(plan, customers[ params[:id] ], params))
+          subscription = resolve_subscription_changes(subscription, [plan], customers[ params[:id] ], params)
           add_subscription_to_customer(customers[ params[:id] ], subscription)
           subscriptions[subscription[:id]] = subscription
         elsif params[:trial_end]
@@ -51,7 +51,7 @@ module StripeMock
           coupon = coupons[ params[:coupon] ]
           assert_existence :coupon, params[:coupon], coupon
 
-          add_coupon_to_customer(customers[params[:id]], coupon)
+          add_coupon_to_object(customers[params[:id]], coupon)
         end
 
         customers[ params[:id] ]
@@ -90,7 +90,7 @@ module StripeMock
           coupon = coupons[ params[:coupon] ]
           assert_existence :coupon, params[:coupon], coupon
 
-          add_coupon_to_customer(cus, coupon)
+          add_coupon_to_object(cus, coupon)
         end
 
         cus

@@ -9,6 +9,9 @@ shared_examples 'Plan API' do
       :amount => 9900,
       :currency => 'USD',
       :interval => 1,
+      :product => {
+        :name => 'A product'
+      },
       :metadata => {
         :description => "desc text",
         :info => "info text"
@@ -30,20 +33,40 @@ shared_examples 'Plan API' do
   end
 
 
+  it "creates a stripe plan without specifying ID" do
+    plan = Stripe::Plan.create(
+      :name => 'The Mock Plan',
+      :amount => 9900,
+      :currency => 'USD',
+      :interval => 1,
+      :product => {
+        :name => 'A product'
+      }
+    )
+
+    expect(plan.id).to match(/^test_plan/)
+  end
+
   it "stores a created stripe plan in memory" do
     plan = Stripe::Plan.create(
       :id => 'pid_2',
       :name => 'The Memory Plan',
       :amount => 1100,
       :currency => 'USD',
-      :interval => 1
+      :interval => 1,
+      :product => {
+        :name => 'A product'
+      }
     )
     plan2 = Stripe::Plan.create(
       :id => 'pid_3',
       :name => 'The Bonk Plan',
       :amount => 7777,
       :currency => 'USD',
-      :interval => 1
+      :interval => 1,
+      :product => {
+        :name => 'A product'
+      }
     )
     data = test_data_source(:plans)
     expect(data[plan.id]).to_not be_nil
@@ -125,7 +148,10 @@ shared_examples 'Plan API' do
         :name => 'The Mock Plan',
         :amount => 99.99,
         :currency => 'USD',
-        :interval => 'month'
+        :interval => 'month',
+        :product => {
+          :name => 'A product'
+        }
       )
     }.to raise_error(Stripe::InvalidRequestError, "Invalid integer: 99.99")
   end
@@ -137,10 +163,16 @@ shared_examples 'Plan API' do
     describe "Required Parameters" do
       after do
         params.delete(@name)
-        expect { subject }.to raise_error(Stripe::InvalidRequestError, "Missing required param: #{@name}.")
+        message =
+          if @name == :amount
+            "Plans require an `#{@name}` parameter to be set."
+          else
+            "Missing required param: #{@name}."
+          end
+        expect { subject }.to raise_error(Stripe::InvalidRequestError, message)
       end
 
-      it("requires a name") { @name = :name }
+      it("requires a product") { @name = :product }
       it("requires an amount") { @name = :amount }
       it("requires a currency") { @name = :currency }
       it("requires an interval") { @name = :interval }
